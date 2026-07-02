@@ -263,7 +263,8 @@
                     <button class="btn btn-outline" onclick="copyResult()">📋 复制</button>
                     <button class="btn btn-outline" onclick="shareResult()">📤 分享</button>
                 </div>
-                <button class="btn btn-warning" style="margin-top:8px" onclick="exportDocx()">📄 导出 Word 文档</button>
+                <button class="btn btn-warning" style="margin-top:8px" onclick="exportDocx()">📄 导出 Word (.docx)</button>
+                <button class="btn btn-outline" style="margin-top:6px" onclick="exportTxt()">📝 导出纯文本 (.txt)</button>
                 <button class="btn btn-success" style="margin-top:8px" onclick="saveToHistory()">💾 保存到历史</button>
                 <button class="btn btn-outline" style="margin-top:6px" onclick="backToEdit()">⬅ 返回修改</button>
             </div>
@@ -604,6 +605,38 @@
                 .catch(function() {
                     showToast('导出失败，请重试');
                 });
+        }
+
+        // ====== 导出纯文本 (.txt) ======
+        function exportTxt() {
+            if (!lastResult) return;
+            const { expenseData, totalAll } = lastResult;
+            const active = expenseData.filter(d => d.subTotal > 0);
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
+
+            let text = '========================================\n';
+            text += '       出差报销费用验算汇总单\n';
+            text += `       ${dateStr}\n`;
+            text += '========================================\n\n';
+            for (const item of active) {
+                const detailStr = item.details.join(' + ');
+                text += `${item.name}：${detailStr} ＝ ¥${item.subTotal.toFixed(2)}\n`;
+            }
+            text += '\n----------------------------------------\n';
+            text += `  总计：¥${totalAll.toFixed(2)}\n`;
+            text += '----------------------------------------\n';
+            text += '\n注：此文件可用任何手机自带的\n';
+            text += '    记事本/备忘录直接打开查看\n';
+
+            const blob = new Blob([text], { type: 'text/plain;charset=UTF-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `出差报销单_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('✅ 纯文本已导出');
         }
 
         // ====== 历史记录 ======
