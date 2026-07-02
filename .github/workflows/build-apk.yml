@@ -1,0 +1,38 @@
+name: 打包 Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 安装 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 安装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      - name: 初始化 TWA 项目
+        run: |
+          bubblewrap init --manifest-url https://tp-0302.github.io/baoxiao/manifest.json --directory twa
+          cd twa
+          # 自动配置
+          bubblewrap update --manifest-url https://tp-0302.github.io/baoxiao/manifest.json
+
+      - name: 构建 APK
+        run: |
+          cd twa
+          bubblewrap build
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: 报销工具-APK
+          path: twa/app/release/*.apk
