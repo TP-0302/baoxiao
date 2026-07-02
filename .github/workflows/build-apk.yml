@@ -45,7 +45,10 @@ jobs:
         working-directory: android
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          gradle assembleRelease --info 2>&1 | tail -80
+          echo "=== 项目结构 ==="
+          find . -name "*.gradle" -o -name "*.xml" -o -name "*.java" | sort
+          echo "=== 开始构建 ==="
+          gradle assembleRelease --stacktrace 2>&1
 
       - name: 签名并上传
         run: |
