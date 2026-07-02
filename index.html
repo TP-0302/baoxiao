@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="报销工具">
+    <meta name="theme-color" content="#409EFF">
+    <title>出差报销验算工具</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='180' height='180' rx='36' fill='%23409EFF'/><text x='90' y='110' font-size='90' text-anchor='middle' fill='white'>🧾</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            min-height: 100vh;
+            padding-bottom: 40px;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .header {
+            background: linear-gradient(135deg, #409EFF, #337ecc);
+            color: #fff;
+            padding: 14px 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(64,158,255,0.3);
+        }
+        .header h1 { font-size: 19px; font-weight: 600; }
+        .header .sub { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+
+        .container { max-width: 480px; margin: 0 auto; padding: 10px 14px; }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #888;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .form-group:last-child { margin-bottom: 0; }
+        .form-group label {
+            width: 68px;
+            min-width: 68px;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: right;
+            color: #555;
+        }
+        .form-group input {
+            flex: 1;
+            height: 38px;
+            border: 1.5px solid #e4e7ed;
+            border-radius: 8px;
+            padding: 0 10px;
+            font-size: 15px;
+            color: #333;
+            background: #fafbfc;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -webkit-appearance: none;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #409EFF;
+            box-shadow: 0 0 0 3px rgba(64,158,255,0.1);
+            background: #fff;
+        }
+        .form-group input::placeholder { color: #c0c4cc; font-size: 12px; }
+
+        .quick-amounts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .quick-tag {
+            font-size: 11px;
+            padding: 3px 10px;
+            background: #ecf5ff;
+            color: #409EFF;
+            border-radius: 12px;
+            border: 1px solid #d9ecff;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .quick-tag:active { background: #409EFF; color: #fff; }
+
+        .btn {
+            display: block;
+            width: 100%;
+            height: 46px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: #409EFF; color: #fff; }
+        .btn-primary:active { background: #3a8ee6; }
+        .btn-success { background: #67c23a; color: #fff; }
+        .btn-success:active { background: #5daf34; }
+        .btn-warning { background: #e6a23c; color: #fff; }
+        .btn-outline {
+            background: #fff;
+            color: #409EFF;
+            border: 1.5px solid #409EFF;
+            height: 38px;
+            font-size: 13px;
+        }
+        .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+        .btn-row .btn { flex: 1; }
+
+        /* 历史记录 */
+        .history-item {
+            background: #fafbfc;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            border-left: 3px solid #409EFF;
+            cursor: pointer;
+            transition: background 0.15s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-item:active { background: #ecf5ff; }
+        .history-item .hi-date { font-size: 12px; color: #999; }
+        .history-item .hi-total { font-size: 16px; font-weight: 700; color: #409EFF; }
+        .history-item .hi-del {
+            font-size: 18px;
+            color: #ccc;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        .history-item .hi-del:active { color: #f56c6c; }
+        .history-empty { text-align: center; color: #c0c4cc; padding: 20px 0; font-size: 13px; }
+
+        /* 结果面板 */
+        .result-panel { display: none; }
+        .result-panel.show { display: block; }
+        .result-table { width: 100%; border-collapse: collapse; }
+        .result-table td {
+            padding: 7px 2px;
+            font-size: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .result-table td:first-child { color: #888; width: 65px; font-size: 13px; }
+        .result-table td:last-child { text-align: right; font-weight: 500; font-family: 'SF Mono','Menlo','Consolas',monospace; }
+        .result-total {
+            font-size: 20px;
+            font-weight: 700;
+            color: #409EFF;
+            text-align: right;
+            padding: 10px 4px 0;
+            border-top: 2px solid #409EFF;
+            margin-top: 8px;
+        }
+        .empty-tip { text-align: center; color: #c0c4cc; padding: 30px 0; font-size: 14px; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%,-50%) scale(0.8);
+            background: rgba(0,0,0,0.78);
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 20px;
+            font-size: 14px;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.25s;
+            z-index: 999;
+        }
+        .toast.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+
+        /* 标签切换 */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: 10px;
+            background: #e8eaed;
+            border-radius: 10px;
+            padding: 3px;
+        }
+        .tab-bar .tab {
+            flex: 1;
+            text-align: center;
+            padding: 8px 0;
+            font-size: 14px;
+            font-weight: 500;
+            color: #888;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-bar .tab.active { background: #fff; color: #409EFF; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+        .safe-bottom { height: env(safe-area-inset-bottom, 12px); }
+
+        @media (max-width: 380px) {
+            .header h1 { font-size: 17px; }
+            .form-group label { width: 58px; min-width: 58px; font-size: 13px; }
+            .form-group input { font-size: 14px; height: 36px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧾 出差报销验算工具</h1>
+        <div class="sub">多笔金额用逗号分隔 · 无支出填"无"</div>
+    </div>
+
+    <div class="container">
+        <!-- 标签切换 -->
+        <div class="tab-bar">
+            <div class="tab active" onclick="switchTab('calc')">📊 新建报销</div>
+            <div class="tab" onclick="switchTab('history')">📋 历史记录</div>
+        </div>
+
+        <!-- ====== 计算页 ====== -->
+        <div id="pageCalc">
+            <div class="card">
+                <div class="card-title">📝 费用明细录入</div>
+                <div id="formFields"></div>
+                <button class="btn btn-primary" onclick="calcAndShow()" style="margin-top:10px">📊 一键验算汇总</button>
+                <div class="btn-row">
+                    <button class="btn btn-outline" onclick="clearAll()">🔄 清空重填</button>
+                    <button class="btn btn-outline" onclick="fillDemo()">📝 示例数据</button>
+                </div>
+            </div>
+
+            <!-- 结果 -->
+            <div class="card result-panel" id="resultPanel">
+                <div id="resultContent"></div>
+                <div class="btn-row" style="margin-top:14px">
+                    <button class="btn btn-outline" onclick="copyResult()">📋 复制</button>
+                    <button class="btn btn-outline" onclick="shareResult()">📤 分享</button>
+                </div>
+                <button class="btn btn-warning" style="margin-top:8px" onclick="printPDF()">🖨️ 导出/打印</button>
+                <button class="btn btn-success" style="margin-top:8px" onclick="saveToHistory()">💾 保存到历史</button>
+                <button class="btn btn-outline" style="margin-top:6px" onclick="backToEdit()">⬅ 返回修改</button>
+            </div>
+        </div>
+
+        <!-- ====== 历史页 ====== -->
+        <div id="pageHistory" style="display:none">
+            <div class="card">
+                <div class="card-title">📋 历史报销记录</div>
+                <div id="historyList"></div>
+                <button class="btn btn-outline" style="margin-top:10px" onclick="clearHistory()">🗑️ 清空历史</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="safe-bottom"></div>
+
+    <script>
+        // ====== 配置 ======
+        const CATEGORIES = [
+            { id: 'ticket',    name: '车票',     icon: '🚄', quick: [50,100,150,200,300,500] },
+            { id: 'hotel',     name: '住宿',     icon: '🏨', quick: [100,150,200,280,350,500] },
+            { id: 'taxi',      name: '打车',     icon: '🚕', quick: [10,15,25,35,50,80] },
+            { id: 'meituan',   name: '美团',     icon: '🛵', quick: [12,15,20,25,35,50] },
+            { id: 'huola',     name: '货拉拉',   icon: '🚚', quick: [50,80,100,150,200] },
+            { id: 'logistics', name: '物流寄件', icon: '📦', quick: [10,15,18,23,30,50] },
+            { id: 'speed',     name: '高速费',   icon: '🛣️', quick: [5,10,15,25,50,100] },
+            { id: 'meal',      name: '餐补',     icon: '🍱', quick: [20,40,60,80,100,120] },
+        ];
+
+        let lastResult = null;
+
+        // ====== 初始化表单 ======
+        function buildForm() {
+            let html = '';
+            for (const cat of CATEGORIES) {
+                html += `<div class="form-group">
+                    <label>${cat.icon} ${cat.name}</label>
+                    <input type="text" id="inp_${cat.id}" placeholder="如：123.5,200" inputmode="decimal" autocomplete="off">
+                </div>`;
+                html += `<div class="quick-amounts">`;
+                for (const q of cat.quick) {
+                    html += `<span class="quick-tag" data-cat="${cat.id}" data-val="${q}">+${q}</span>`;
+                }
+                html += `</div>`;
+            }
+            document.getElementById('formFields').innerHTML = html;
+
+            // 快捷金额点击事件
+            document.querySelectorAll('.quick-tag').forEach(tag => {
+                tag.addEventListener('click', function() {
+                    const catId = this.dataset.cat;
+                    const val = this.dataset.val;
+                    const inp = document.getElementById('inp_' + catId);
+                    const cur = inp.value.trim();
+                    if (cur === '无') {
+                        inp.value = val;
+                    } else if (cur === '') {
+                        inp.value = val;
+                    } else {
+                        inp.value = cur + ',' + val;
+                    }
+                    inp.focus();
+                });
+            });
+        }
+
+        // ====== 自动保存输入内容到 localStorage ======
+        function autoSave() {
+            const data = {};
+            for (const cat of CATEGORIES) {
+                data[cat.id] = document.getElementById('inp_' + cat.id).value;
+            }
+            localStorage.setItem('baoxiao_draft', JSON.stringify(data));
+        }
+
+        function autoLoad() {
+            try {
+                const raw = localStorage.getItem('baoxiao_draft');
+                if (raw) {
+                    const data = JSON.parse(raw);
+                    for (const cat of CATEGORIES) {
+                        if (data[cat.id]) {
+                            document.getElementById('inp_' + cat.id).value = data[cat.id];
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+
+        // ====== 标签切换 ======
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-bar .tab').forEach((t, i) => {
+                t.classList.toggle('active', (tab === 'calc' && i === 0) || (tab === 'history' && i === 1));
+            });
+            document.getElementById('pageCalc').style.display = tab === 'calc' ? '' : 'none';
+            document.getElementById('pageHistory').style.display = tab === 'history' ? '' : 'none';
+            if (tab === 'history') {
+                renderHistory();
+                // 如果在结果页，先返回
+                if (document.getElementById('resultPanel').classList.contains('show')) {
+                    backToEdit();
+                }
+            }
+        }
+
+        // ====== 计算逻辑 ======
+        function calcAndShow() {
+            const expenseData = [];
+            let totalAll = 0;
+            let hasError = false;
+            let hasAny = false;
+
+            for (const cat of CATEGORIES) {
+                const inputEl = document.getElementById('inp_' + cat.id);
+                const raw = inputEl.value.trim();
+                let detailList = [];
+                let subTotal = 0;
+
+                if (raw === '无' || raw === '') {
+                    expenseData.push({ ...cat, details: [], subTotal: 0, raw: '' });
+                    continue;
+                }
+
+                const parts = raw.split(/[,，]/);
+                for (const p of parts) {
+                    const s = p.trim();
+                    if (!s) continue;
+                    const val = parseFloat(s);
+                    if (isNaN(val) || val <= 0) {
+                        showToast(`【${cat.name}】中存在非法金额："${s}"`);
+                        hasError = true;
+                        break;
+                    }
+                    detailList.push(val);
+                    subTotal += val;
+                }
+                if (hasError) return;
+
+                if (subTotal > 0) hasAny = true;
+                expenseData.push({
+                    ...cat,
+                    details: detailList,
+                    subTotal: Math.round(subTotal * 100) / 100,
+                    raw: raw
+                });
+                totalAll += subTotal;
+            }
+
+            totalAll = Math.round(totalAll * 100) / 100;
+
+            if (!hasAny) {
+                showToast('请至少填写一项费用');
+                return;
+            }
+
+            lastResult = { expenseData, totalAll, time: new Date().toISOString() };
+            renderResult(expenseData, totalAll);
+            autoSave();
+        }
+
+        function renderResult(expenseData, totalAll) {
+            const activeItems = expenseData.filter(d => d.subTotal > 0);
+            let html = '<div class="card-title">📋 费用明细汇总</div>';
+
+            if (activeItems.length === 0) {
+                html += '<div class="empty-tip">暂无费用数据</div>';
+            } else {
+                html += '<table class="result-table">';
+                for (const item of activeItems) {
+                    const detailStr = item.details.join('+');
+                    html += `<tr>
+                        <td>${item.icon} ${item.name}</td>
+                        <td>${detailStr} ＝ <b>¥${item.subTotal.toFixed(2)}</b></td>
+                    </tr>`;
+                }
+                html += '</table>';
+                html += `<div class="result-total">💰 总计：¥${totalAll.toFixed(2)}</div>`;
+            }
+
+            document.getElementById('resultContent').innerHTML = html;
+            document.getElementById('resultPanel').classList.add('show');
+            document.querySelector('#pageCalc > .card:first-child').style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function backToEdit() {
+            document.querySelector('#pageCalc > .card:first-child').style.display = '';
+            document.getElementById('resultPanel').classList.remove('show');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function clearAll() {
+            for (const cat of CATEGORIES) {
+                document.getElementById('inp_' + cat.id).value = '';
+            }
+            lastResult = null;
+            backToEdit();
+            localStorage.removeItem('baoxiao_draft');
+            showToast('已清空');
+        }
+
+        function fillDemo() {
+            const demo = {
+                ticket: '123.5,200', hotel: '350,280', taxi: '25,38.5,45',
+                meituan: '15,22', huola: '80', logistics: '18,25',
+                speed: '15,30', meal: '80,100',
+            };
+            for (const cat of CATEGORIES) {
+                document.getElementById('inp_' + cat.id).value = demo[cat.id] || '';
+            }
+            autoSave();
+            showToast('已填入示例数据');
+        }
+
+        // ====== 复制 & 分享 ======
+        function copyResult() {
+            if (!lastResult) return;
+            const { expenseData, totalAll } = lastResult;
+            const active = expenseData.filter(d => d.subTotal > 0);
+            let text = '=========== 费用明细汇总 ===========\n';
+            for (const item of active) {
+                text += `${item.name} ${item.details.join('+')}\n`;
+            }
+            text += `总计 ${totalAll.toFixed(2)}\n`;
+            text += '====================================';
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => showToast('✅ 已复制到剪贴板'));
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('✅ 已复制到剪贴板');
+            }
+        }
+
+        function shareResult() {
+            if (!lastResult) return;
+            const { expenseData, totalAll } = lastResult;
+            const active = expenseData.filter(d => d.subTotal > 0);
+            let text = '🧾 出差报销汇总\n';
+            for (const item of active) {
+                text += `${item.icon} ${item.name}：${item.details.join('+')} ＝ ¥${item.subTotal.toFixed(2)}\n`;
+            }
+            text += `\n💰 总计：¥${totalAll.toFixed(2)}`;
+
+            if (navigator.share) {
+                navigator.share({ title: '出差报销单', text: text }).catch(() => {});
+            } else {
+                copyResult();
+            }
+        }
+
+        // ====== 导出 PDF ======
+        function printPDF() {
+            if (!lastResult) return;
+            const { expenseData, totalAll } = lastResult;
+            const active = expenseData.filter(d => d.subTotal > 0);
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+            let html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>出差报销单</title>
+<style>body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;padding:20px;color:#333}
+h1{text-align:center;font-size:22px;margin-bottom:4px}
+.date{text-align:center;color:#999;font-size:13px;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+td{padding:8px 10px;border-bottom:1px solid #eee;font-size:15px}
+td:last-child{text-align:right;font-weight:500}
+.total{font-size:20px;font-weight:700;color:#409EFF;text-align:right;border-top:2px solid #409EFF;padding-top:12px}
+@media print{body{padding:0}}
+</style></head><body>
+<h1>🧾 出差报销费用验算汇总单</h1><div class="date">${dateStr}</div><table>`;
+
+            for (const item of active) {
+                html += `<tr><td>${item.icon} ${item.name}</td><td>${item.details.join('+')} ＝ ¥${item.subTotal.toFixed(2)}</td></tr>`;
+            }
+            html += `</table><div class="total">💰 总计：¥${totalAll.toFixed(2)}</div></body></html>`;
+
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `出差报销单_${dateStr}.html`;
+            a.click();
+            showToast('📄 已下载，浏览器打开即可打印PDF');
+        }
+
+        // ====== 历史记录 ======
+        function saveToHistory() {
+            if (!lastResult) return;
+            const records = getHistory();
+            records.unshift({
+                id: Date.now(),
+                time: lastResult.time,
+                expenseData: lastResult.expenseData,
+                totalAll: lastResult.totalAll
+            });
+            // 最多保留50条
+            if (records.length > 50) records.length = 50;
+            localStorage.setItem('baoxiao_history', JSON.stringify(records));
+            showToast('💾 已保存到历史记录');
+        }
+
+        function getHistory() {
+            try {
+                return JSON.parse(localStorage.getItem('baoxiao_history') || '[]');
+            } catch(e) { return []; }
+        }
+
+        function renderHistory() {
+            const records = getHistory();
+            const container = document.getElementById('historyList');
+            if (records.length === 0) {
+                container.innerHTML = '<div class="history-empty">📭 暂无历史记录<br><small>计算完成后点击"保存到历史"即可</small></div>';
+                return;
+            }
+            let html = '';
+            for (const r of records) {
+                const d = new Date(r.time);
+                const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+                const count = r.expenseData.filter(e => e.subTotal > 0).length;
+                html += `<div class="history-item" onclick="loadHistory(${r.id})">
+                    <div>
+                        <div style="font-size:14px;font-weight:500">${count}项费用</div>
+                        <div class="hi-date">${dateStr}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <span class="hi-total">¥${r.totalAll.toFixed(2)}</span>
+                        <span class="hi-del" onclick="event.stopPropagation();deleteHistory(${r.id})">🗑️</span>
+                    </div>
+                </div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function loadHistory(id) {
+            const records = getHistory();
+            const r = records.find(r => r.id === id);
+            if (!r) return;
+            // 恢复数据到表单
+            for (const cat of CATEGORIES) {
+                const found = r.expenseData.find(e => e.id === cat.id);
+                document.getElementById('inp_' + cat.id).value = found ? found.raw : '';
+            }
+            lastResult = { expenseData: r.expenseData, totalAll: r.totalAll, time: r.time };
+            autoSave();
+            switchTab('calc');
+            renderResult(r.expenseData, r.totalAll);
+            showToast('已加载历史记录');
+        }
+
+        function deleteHistory(id) {
+            let records = getHistory();
+            records = records.filter(r => r.id !== id);
+            localStorage.setItem('baoxiao_history', JSON.stringify(records));
+            renderHistory();
+            showToast('已删除');
+        }
+
+        function clearHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                localStorage.removeItem('baoxiao_history');
+                renderHistory();
+                showToast('历史记录已清空');
+            }
+        }
+
+        // ====== Toast ======
+        function showToast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            clearTimeout(el._tid);
+            el._tid = setTimeout(() => el.classList.remove('show'), 1800);
+        }
+
+        // ====== 初始化 ======
+        buildForm();
+        autoLoad();
+
+        // 自动保存（输入时）
+        document.addEventListener('input', function(e) {
+            if (e.target.tagName === 'INPUT' && e.target.id.startsWith('inp_')) {
+                autoSave();
+            }
+        });
+
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+    </script>
+</body>
+</html>
