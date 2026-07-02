@@ -18,50 +18,47 @@ jobs:
 
       - name: 安装 Android SDK
         run: |
-          mkdir -p $HOME/Android/cmdline-tools
-          cd $HOME/Android/cmdline-tools
+          export ANDROID_HOME=$HOME/Android
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          cd $ANDROID_HOME/cmdline-tools
           curl -sL -o tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
           unzip -q tools.zip
           mv cmdline-tools latest
-          echo "ANDROID_HOME=$HOME/Android" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$HOME/Android" >> $GITHUB_ENV
-          yes | $HOME/Android/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
-      - name: 安装 Gradle
+      - name: 下载 Gradle 8.5
         run: |
-          sudo apt-get install -y -qq gradle
+          curl -sL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
+          sudo unzip -q /tmp/gradle.zip -d /opt
+          echo "/opt/gradle-8.5/bin" >> $GITHUB_PATH
 
-      - name: 构建 APK
-        working-directory: android
+      - name: 生成签名密钥
         run: |
-          gradle assembleRelease
-
-      - name: 签名 APK
-        run: |
-          APK=$(find android -path "*/release/*.apk" | head -1)
-          if [ -z "$APK" ]; then
-            APK=$(find android -name "*.apk" | head -1)
-          fi
-          echo "Build APK: $APK"
           keytool -genkey -v -keystore release.keystore \
             -alias baoxiao -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android \
             -dname "CN=baoxiao, OU=app, O=baoxiao, L=Shanghai, ST=Shanghai, C=CN"
-          $HOME/Android/build-tools/34.0.0/apksigner sign \
+
+      - name: 构建 APK
+        working-directory: android
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle assembleRelease --info 2>&1 | tail -80
+
+      - name: 签名并上传
+        run: |
+          APK=$(find android -name "*.apk" -path "*/release/*" | head -1)
+          echo "Found APK: $APK"
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
             --ks release.keystore --ks-pass pass:android \
             --ks-key-alias baoxiao --key-pass pass:android \
-            --out baoxiao-signed.apk "$APK"
-          echo "Signed APK created"
+            --out baoxiao.apk "$APK"
+          ls -la baoxiao.apk
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
           name: 报销工具-APK
-          path: baoxiao-signed.apk
-
-      - name: 上传未签名 APK（备用）
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: 报销工具-APK-未签名
-          path: "android/**/*.apk"
+          path: baoxiao.apk
