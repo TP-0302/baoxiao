@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-title" content="报销工具">
     <meta name="theme-color" content="#409EFF">
     <title>出差报销验算工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><rect width='180' height='180' rx='36' fill='%23409EFF'/><text x='90' y='110' font-size='90' text-anchor='middle' fill='white'>🧾</text></svg>">
     <style>
@@ -262,7 +263,7 @@
                     <button class="btn btn-outline" onclick="copyResult()">📋 复制</button>
                     <button class="btn btn-outline" onclick="shareResult()">📤 分享</button>
                 </div>
-                <button class="btn btn-warning" style="margin-top:8px" onclick="printPDF()">🖨️ 导出/打印</button>
+                <button class="btn btn-warning" style="margin-top:8px" onclick="exportDocx()">📄 导出 Word 文档</button>
                 <button class="btn btn-success" style="margin-top:8px" onclick="saveToHistory()">💾 保存到历史</button>
                 <button class="btn btn-outline" style="margin-top:6px" onclick="backToEdit()">⬅ 返回修改</button>
             </div>
@@ -522,38 +523,87 @@
             }
         }
 
-        // ====== 导出 PDF ======
-        function printPDF() {
+        // ====== 导出 Word (.docx) ======
+        function exportDocx() {
             if (!lastResult) return;
+            if (typeof JSZip === 'undefined') {
+                showToast('正在加载导出组件，请稍后再试');
+                return;
+            }
             const { expenseData, totalAll } = lastResult;
             const active = expenseData.filter(d => d.subTotal > 0);
             const now = new Date();
-            const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            const dateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日`;
 
-            let html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>出差报销单</title>
-<style>body{font-family:'PingFang SC','Microsoft YaHei',sans-serif;padding:20px;color:#333}
-h1{text-align:center;font-size:22px;margin-bottom:4px}
-.date{text-align:center;color:#999;font-size:13px;margin-bottom:20px}
-table{width:100%;border-collapse:collapse;margin-bottom:16px}
-td{padding:8px 10px;border-bottom:1px solid #eee;font-size:15px}
-td:last-child{text-align:right;font-weight:500}
-.total{font-size:20px;font-weight:700;color:#409EFF;text-align:right;border-top:2px solid #409EFF;padding-top:12px}
-@media print{body{padding:0}}
-</style></head><body>
-<h1>🧾 出差报销费用验算汇总单</h1><div class="date">${dateStr}</div><table>`;
-
+            // 构建 Word XML 文档
+            let rowsXml = '';
             for (const item of active) {
-                html += `<tr><td>${item.icon} ${item.name}</td><td>${item.details.join('+')} ＝ ¥${item.subTotal.toFixed(2)}</td></tr>`;
+                const detailStr = item.details.join(' + ');
+                rowsXml += `
+        <w:tr>
+            <w:tc><w:p><w:r><w:rPr><w:rFonts w:eastAsia="宋体"/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${item.icon} ${item.name}</w:t></w:r></w:p></w:tc>
+            <w:tc><w:p><w:r><w:rPr><w:rFonts w:eastAsia="宋体"/><w:sz w:val="24"/></w:rPr><w:t xml:space="preserve">${detailStr} = ${item.subTotal.toFixed(2)}</w:t></w:r></w:p></w:tc>
+        </w:tr>`;
             }
-            html += `</table><div class="total">💰 总计：¥${totalAll.toFixed(2)}</div></body></html>`;
 
-            const blob = new Blob([html], { type: 'text/html' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `出差报销单_${dateStr}.html`;
-            a.click();
-            showToast('📄 已下载，浏览器打开即可打印PDF');
+            const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+    <w:body>
+        <w:p><w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r><w:rPr><w:rFonts w:eastAsia="宋体"/><w:b/><w:sz w:val="32"/></w:rPr><w:t>出差报销费用验算汇总单</w:t></w:r>
+        </w:p>
+        <w:p><w:pPr><w:jc w:val="center"/></w:pPr>
+            <w:r><w:rPr><w:rFonts w:eastAsia="宋体"/><w:sz w:val="22"/><w:color w:val="999999"/></w:rPr><w:t>${dateStr}</w:t></w:r>
+        </w:p>
+        <w:p><w:r><w:rPr><w:rFonts w:eastAsia="宋体"/></w:rPr></w:r></w:p>
+        <w:tbl>
+            <w:tblPr><w:tblW w:w="9000" w:type="dxa"/></w:tblPr>
+            <w:tblGrid><w:gridCol w:w="2500"/><w:gridCol w:w="6500"/></w:tblGrid>
+            ${rowsXml}
+        </w:tbl>
+        <w:p><w:r><w:rPr><w:rFonts w:eastAsia="宋体"/></w:rPr></w:r></w:p>
+        <w:p><w:pPr><w:jc w:val="right"/></w:pPr>
+            <w:r><w:rPr><w:rFonts w:eastAsia="宋体"/><w:b/><w:sz w:val="28"/><w:color w:val="409EFF"/></w:rPr><w:t>总计：${totalAll.toFixed(2)} 元</w:t></w:r>
+        </w:p>
+    </w:body>
+</w:document>`;
+
+            const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+            const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+            const docRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`;
+
+            const zip = new JSZip();
+            zip.file('[Content_Types].xml', contentTypesXml);
+            zip.folder('_rels').file('.rels', relsXml);
+            zip.folder('word').file('document.xml', documentXml);
+            zip.folder('word').folder('_rels').file('document.xml.rels', docRelsXml);
+
+            zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+                .then(function(blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `出差报销单_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.docx`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast('✅ Word 文档已导出');
+                })
+                .catch(function() {
+                    showToast('导出失败，请重试');
+                });
         }
 
         // ====== 历史记录 ======
