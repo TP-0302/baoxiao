@@ -3,6 +3,8 @@ const CACHE_NAME = 'baoxiao-v2';
 const ASSETS = [
     'index.html',
     'manifest.json',
+    'icon-192.png',
+    'icon-512.png',
 ];
 
 // 安装：预缓存核心文件
