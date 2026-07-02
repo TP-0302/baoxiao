@@ -7,13 +7,16 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
       - name: 安装 Java 17
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq openjdk-17-jdk-headless
           echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
 
-      - name: 安装 Android SDK 命令行工具
+      - name: 安装 Android SDK
         run: |
           mkdir -p $HOME/Android/cmdline-tools
           cd $HOME/Android/cmdline-tools
@@ -24,24 +27,41 @@ jobs:
           echo "ANDROID_SDK_ROOT=$HOME/Android" >> $GITHUB_ENV
           yes | $HOME/Android/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34"
 
-      - name: 安装 Bubblewrap
-        run: npm install -g @bubblewrap/cli
-
-      - name: 生成签名密钥
+      - name: 安装 Gradle
         run: |
+          sudo apt-get install -y -qq gradle
+
+      - name: 构建 APK
+        working-directory: android
+        run: |
+          gradle assembleRelease
+
+      - name: 签名 APK
+        run: |
+          APK=$(find android -path "*/release/*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            APK=$(find android -name "*.apk" | head -1)
+          fi
+          echo "Build APK: $APK"
           keytool -genkey -v -keystore release.keystore \
             -alias baoxiao -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android \
             -dname "CN=baoxiao, OU=app, O=baoxiao, L=Shanghai, ST=Shanghai, C=CN"
-
-      - name: 初始化并构建 TWA
-        run: |
-          bubblewrap init --manifest-url https://tp-0302.github.io/baoxiao/manifest.json --directory twa
-          cd twa
-          bubblewrap build
+          $HOME/Android/build-tools/34.0.0/apksigner sign \
+            --ks release.keystore --ks-pass pass:android \
+            --ks-key-alias baoxiao --key-pass pass:android \
+            --out baoxiao-signed.apk "$APK"
+          echo "Signed APK created"
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: 报销工具-Android-APK
-          path: "**/*.apk"
+          name: 报销工具-APK
+          path: baoxiao-signed.apk
+
+      - name: 上传未签名 APK（备用）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 报销工具-APK-未签名
+          path: "android/**/*.apk"
