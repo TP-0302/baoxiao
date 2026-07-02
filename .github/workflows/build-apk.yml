@@ -7,7 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: 安装 Java
+      - name: 安装 Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -19,20 +19,33 @@ jobs:
       - name: 安装 Bubblewrap
         run: npm install -g @bubblewrap/cli
 
-      - name: 初始化 TWA 项目
+      - name: 生成签名密钥
+        run: |
+          keytool -genkey -v -keystore release.keystore \
+            -alias baoxiao -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=baoxiao, OU=app, O=baoxiao, L=Shanghai, ST=Shanghai, C=CN"
+
+      - name: 初始化并构建 TWA
         run: |
           bubblewrap init --manifest-url https://tp-0302.github.io/baoxiao/manifest.json --directory twa
           cd twa
-          # 自动配置
-          bubblewrap update --manifest-url https://tp-0302.github.io/baoxiao/manifest.json
-
-      - name: 构建 APK
-        run: |
-          cd twa
           bubblewrap build
+
+      - name: 签名 APK
+        run: |
+          APK=$(find twa -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "APK not found, building manually..."
+            cd twa
+            ./gradlew assembleRelease
+            APK=$(find . -name "*.apk" | head -1)
+          fi
+          echo "APK found: $APK"
+          cp "$APK" ./baoxiao.apk
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: 报销工具-APK
-          path: twa/app/release/*.apk
+          name: 报销工具-Android-APK
+          path: "*.apk"
